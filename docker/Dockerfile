@@ -5,11 +5,11 @@ FROM python:3.6
 MAINTAINER Preva
 
 #add project files to the usr/src/app folder
-ADD hbgd_data_store_server /srv/app
+ADD ../hbgd_data_store_server /srv/app
 
 #set directoty where CMD will execute
 WORKDIR /srv/app
-#COPY hbgd_data_store_server/requirements.txt ./
+#COPY requirements.txt ./
 
 # Get pip to download and install requirements:
 RUN pip install --no-cache-dir -r requirements.txt && \
@@ -21,4 +21,4 @@ EXPOSE 8000
 ENV DJANGO_SETTINGS_MODULE=hbgd_data_store_server.settings SECRET_KEY=foobarbaz
 
 # default command to execute
-CMD exec gunicorn hbgd_data_store_server.wsgi:application --bind 0.0.0.0:8000 --workers 3
+CMD exec gunicorn ../hbgd_data_store_server.wsgi:application --bind 0.0.0.0:8000 --workers 3

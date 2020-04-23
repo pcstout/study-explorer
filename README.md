@@ -11,9 +11,9 @@ The Study Explorer tool, as known as the Data Store Explorer, presents informati
 
 The simplest way to evaluate StudyExplorer is to use docker-compose
 
-    # download https://raw.githubusercontent.com/HBGDki/study-explorer/master/docker-compose.yml
-    curl -O https://raw.githubusercontent.com/HBGDki/study-explorer/master/docker-compose.yml
-    # or, alternatively, wget https://raw.githubusercontent.com/HBGDki/study-explorer/master/docker-compose.yml
+    # download https://raw.githubusercontent.com/HBGDki/study-explorer/master/docker/docker-compose.yml
+    curl -O https://raw.githubusercontent.com/HBGDki/study-explorer/master/docker/docker-compose.yml
+    # or, alternatively, wget https://raw.githubusercontent.com/HBGDki/study-explorer/master/docker/docker-compose.yml
     # or git clone https://github.com/HBGDki/study-explorer.git && cd study-explorer
 
 Start studyexplorer and a database server with docker-compose up
@@ -25,12 +25,12 @@ Initialize various settings including database migrations, usernames, passwords 
     # Initialize database
     docker-compose exec web /usr/local/bin/python manage.py migrate
     docker-compose exec web /usr/local/bin/python manage.py createsuperuser --username admin --email you@yourdomain.com
-    psql -h localhost -U postgres postgres -f hbgd_data_store_server/data/sql/000_reset_db.sql
-    psql -h localhost -U postgres postgres -f hbgd_data_store_server/data/sql/001_import_studies_domain.sql
+    psql -h localhost -U postgres postgres -f data/sql/000_reset_db.sql
+    psql -h localhost -U postgres postgres -f data/sql/001_import_studies_domain.sql
     docker-compose exec web /usr/local/bin/python manage.py load_studies data/csv/studyinfo.csv
-    psql -h localhost -U postgres postgres -f hbgd_data_store_server/data/sql/002_update_studies_studyfield.sql
+    psql -h localhost -U postgres postgres -f data/sql/002_update_studies_studyfield.sql
     docker-compose exec web /usr/local/bin/python manage.py load_idx data/csv/idx.zip
-    psql -h localhost -U postgres postgres -f hbgd_data_store_server/data/sql/003_import_studies_filter.sql
+    psql -h localhost -U postgres postgres -f data/sql/003_import_studies_filter.sql
 
 Navigate to http://localhost:8000 and you will see the study explorer application running.
 
@@ -50,6 +50,10 @@ Note that the application is running, but will be unable to connect to a databas
 * RDS_USERNAME
 * RDS_PASSWORD
 * RDS_HOSTNAME
+
+OR
+
+* DATABASE_URL
 
 To run in a production environment, either consult your cloud hosting provider's documentation for installing an application from a Docker image, or set up a server running docker and mapping the host's port 80 to the docker container's port 8000 (you will need admin/root privileges).
 
@@ -133,10 +137,49 @@ If you've already been through setup once:
 
 ```sh
 $ postgres -D data
-$ cd hbgd_data_store_server; ./manage.py runserver
+$ ./manage.py runserver
 ```
 
 # Running tests
 ```sh
 $ ./manage.py test --driver Firefox -v
 ```
+
+
+# Dokku Hosting
+
+## Server Configuration
+
+- Increase nginx timeout. Update `/etc/nginx/conf.d/dokku.conf` add the following lines:
+```text
+proxy_connect_timeout   3600;
+proxy_send_timeout      3600;
+proxy_read_timeout      3600;
+```
+- Restart nginx: `sudo service nginx reload`
+
+## Create New App Instance
+
+Execute these commands on the Dokku server:
+
+- Create the app: `dokku apps:create se-<name>` (e.g., `dokku apps:create se-usa`)
+- Create the database: `dokku postgres:create se-<name>-db`
+- Link the database to the app: `dokku postgres:link se-<name>-db se-<name>`
+- Set the ENV variables: `dokku config:set se-<name> WEB_CONCURRENCY=4 ALLOWED_HOSTS=".kiglobalhealth.org,.hbgdki.org,.studyexplorer.io" SECRET_KEY="<your-secret-key>"`
+- Set the domain: `dokku domains:add se-<name> <name>.studyexplorer.io`
+- Import the database export: `dokku postgres:import se-<name>-db < se-<name>.dump`
+
+Execute these commands on your local system:
+
+- Add git remotes: `git remote add se-<name> dokku@dokku.studyexplorer.io:se-<name>`
+- Add your SSH key: `ssh-add -k ~/.ssh/dokku-study-explorer.pem`
+
+## Deployment
+
+- `git push se-<name> master` (e.g., `git push se-staging master`)
+
+Or via Make:
+- `make deploy <name>` (e.g., `make deploy staging`)
+
+To deploy your currently checked out branch:
+- `make deploy_current_branch <name>` (e.g., `make deploy_current_branch staging`)
